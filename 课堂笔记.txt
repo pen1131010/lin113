@@ -1,0 +1,579 @@
+1 多表查询：
+	当要查询的数据在多个表中的时候就要使用多表查询
+	select ...
+	from 表1 别名1,表2  别名2
+	where ...
+
+
+	查询员工信息：员工号，姓名，月薪和部门名称
+		select empno,ename,sal,emp.deptno,dname
+		from emp,dept 
+		where emp.deptno = dept.deptno
+
+		join on 的方式实现表连接，将from里边逗号换成join，where换成on
+			select empno,ename,sal,emp.deptno,dname
+			from emp join dept 
+			on emp.deptno = dept.deptno
+
+
+		多表查询也称为表连接，多表查询的筛选条件称为连接条件
+		连接条件使用等号称为等值连接，如果不是等号称为非等值连接
+
+	查询员工信息：员工号，姓名，月薪和月薪级别（salgrade表）
+		select *
+		from emp , salgrade
+		where sal between losal and hisal
+
+
+	按部门统计员工人数，显示如下信息：部门号，部门名称，人数（注意统计40号部门）
+		注意：emp表中没有40号部门的员工，表连接之后，40号数据就被剔除
+		外连接：想保留没有通过筛选条件的数据的时候就要使用外连接
+		使用方式：
+			oracle：想保留哪一张表的额外的数据就在等号的另一边使用(+)
+			外连接分为左外连接和右外连接，想保留左边表的数据就使用左外连接，想保留右边就使用右外连接
+
+		select d.deptno,d.dname,count(empno)
+		from dept d,emp e
+		where d.deptno=e.deptno(+)
+		group by d.deptno,d.dname
+
+			join on 使用外连接:  注意使用join on的语法是不能使用oracle的(+)
+
+			join on 中使用左外连接和右外连接直接在join前面指定 left|right|full
+
+		select d.deptno,d.dname,count(empno)
+		from dept d left join emp e
+		on d.deptno=e.deptno
+		group by d.deptno,d.dname
+
+	
+自连接：
+	表自己跟自己做多表连接，要查询的数据在同一张表，但是不在同一行
+
+	查询员工信息：将员工的主管名字也显示出来（KING的主管是他自己）
+
+		输出格式 a's manager is b
+			sql中字符串使用两个单引号转义输出一个引号
+		select a.ename||'''s manager is '||nvl(b.ename,'himself')
+		from emp a, emp b
+		where a.mgr = b.empno(+)
+
+
+
+2 子查询：
+	一个select语句里边嵌套其他的select语句
+	
+	查询比scott工资高的员工信息 
+		1 先查询出scott的工资
+			select sal from emp where ename= 'SCOTT'
+		2 查询比3000高的
+			select * from emp where sal > 3000
+	
+
+		select *
+		from emp
+		where sal >
+		(
+			--将scott工资查询出来
+			select sal from emp where ename= 'SCOTT'
+		)
+
+	注意事项
+	* 注意书写风格
+	* 父查询和子查询可以是不同的表，子查询返回的结果父查询可以使用即可
+		查询部门名称是 'SALES' 的员工信息
+			1 查出sales 部门编号
+				 select * from dept where dname = 'SALES';    --30
+
+			2 查出该部门的员工信息
+				select * 
+				from emp
+				where deptno = 30
+
+				select * 
+				from emp
+				where deptno = 
+				(
+					select deptno from dept where dname = 'SALES'
+				)
+	 
+	* 父查询的select、from、where、having都可以嵌套子查询
+			select ...
+			from ...
+			where ...
+			group by ...    --不能使用子查询
+			having ...
+			order by ....  --不能使用子查询
+
+		select 后置子查询：查询10号部门的员工号、员工姓名、部门编号、部门名称
+			select empno , ename , deptno , 
+				(
+					select dname
+					from dept 
+					where deptno=10
+				) dname
+			from emp
+			where deptno = 10
+
+		from 后置子查询： 查询员工的姓名、月薪和年薪（使用select * from _________)
+			select * from
+			(
+				select ename , sal ,sal*13
+				from emp
+			)
+
+		where后置子查询： 查询与ward相同岗位并且月薪比他高的员工信息
+			1 先查询ward的岗位
+				select job 
+				from emp
+				where ename = 'WARD'
+
+				SALESMANE
+			2 把ward的月薪查询出来
+				select sal
+				from emp
+				where ename = 'WARD'
+
+				1250
+			3 执行最后的查询
+				select *
+				from emp
+				where job = 'SALESMAN' and sal >1250
+
+			select *
+			from emp
+			where job = 
+			(				
+				select job 
+				from emp
+				where ename = 'WARD'
+			)
+			and sal >
+			(
+				select sal
+				from emp
+				where ename = 'WARD'
+			)
+
+		having后置子查询：查询部门最低月薪高于30号部门的部门以及其最低月薪
+			确定每个部门的最低月薪
+			再确定哪个部门比30号部门高
+			1 先将30号部门的最低月薪查询出来
+				select min(sal)
+				from emp
+				where deptno = 30
+
+				--950
+
+			2 查询最低月薪比950高的部门
+				select deptno,min(sal)
+				from emp
+				group by deptno
+				having min(sal) > 950
+
+
+			select deptno,min(sal)
+			from emp
+			group by deptno
+			having min(sal) > 
+			(
+				select min(sal)
+				from emp
+				where deptno = 30
+			)
+
+
+	* 单行子查询只能使用单行操作符，多行子查询只能使用多行操作符 （这里都是指单列）
+		单行操作符，就是对某个单一数据的比较操作
+		=|>|>=|<|<=等
+		
+	* 多行操作符，就是对一个集合的比较操作(IN、ANY、ALL)
+	 
+		查询部门名称为SALES和ACCOUNTING的员工信息 (IN)
+			1 将两个部门的编号查询出来
+				select deptno
+				from dept
+				where dname ='SALES' or dname = 'ACCOUNTING'
+				10,30
+			2 查询这两个部门的员工信息
+				select *
+				from emp
+				where deptno in (10,30)
+
+			select *
+			from emp
+			where deptno in (
+				select deptno
+				from dept
+				where dname ='SALES' or dname = 'ACCOUNTING'				
+			)	
+
+		查询月薪比30号部门任意一个（某一个any）员工高的员工信息
+
+			1 先查询出30号部门的最低工资
+				select min(sal) from emp where deptno = 30
+			2 再查询出比30号部门最低工资高的员工信息
+				select * from emp where sal > (select min(sal) from emp where deptno = 30)
+
+
+			select *
+			from emp
+			where sal > any
+			(
+				select sal
+				from emp
+				where deptno = 30
+			)
+
+		
+		查询比30号部门所有员工工资都高的员工信息
+			比30号部门最高工资高就可以
+
+			select *
+			from emp
+			where sal > 
+			(
+				--查询出30号部门最高工资
+				select max(sal)
+				from emp
+				where deptno = 30
+			)
+
+
+			select *
+			from emp
+			where sal > all
+			(
+				--查询出30号部门的所有工资
+				select sal
+				from emp
+				where deptno = 30
+			)
+
+
+	* 注意子查询中返回的null值影响最终计算结果
+	
+		查询不是主管的员工信息
+
+			1 查询出是主管的员工工号
+				select mgr from emp;
+
+			2 取反，得到不是主管的员工信息
+				select *
+				from emp 
+				where empno not in
+				(
+					select mgr from emp
+				)
+
+				最终查询不到数据
+
+			分析：
+				假设 select mgr from emp;
+				->  ( 7902,7698,null)
+
+				查询empno 不在这里边的  ,假设判断值是7839，要判断不在这个集合里边
+					7839!=7902 && 7839!=7698 && 7839!=null
+					因为null做任何的逻辑运算结果都是假，上面结果是假
+
+					如果是使用in的话
+					7839==7902 || 7839==7698 || 7839!=null
+
+		
+	* SQL解析：一般先执行子查询（内查询），再执行父查询（外查询）；关联子查询除外
+
+
+
+	
+4 集合运算：
+	
+	并集 union    去重
+	全并集  union all 不去重
+	交集 intersect 
+	差集 minus 
+
+
+	部门号是10的员工和部门号是20的员工信息做并集（以及全并集）
+		将10号和20号部门的员工信息先查询出来，添加 union
+
+		select * from emp where deptno = 10
+		union
+		select * from emp where deptno = 20
+
+
+		select * from emp where deptno in (10,20)
+		union all
+		select * from emp where deptno = 20
+
+	用10号部门的员工信息和 10,20号部门的员工信息做交集
+		select * from emp where deptno in (10,20)
+		intersect
+		select * from emp where deptno = 10
+	
+	用10,30的员工减去10,20的员工信息
+
+	
+	查询三个部门的工资信息并分组统计，格式如下：
+
+	    DEPTNO JOB                  SUM(SAL)
+	---------- ------------------ ----------
+			10 CLERK                    1300
+			   MANAGER                  2450
+			   PRESIDENT                5000
+										8750
+
+			20 ANALYST                  6000
+			   CLERK                    1900
+			   MANAGER                  2975
+									   10875
+
+			30 CLERK                     950
+			   MANAGER                  2850
+			   SALESMAN                 5600
+										9400
+
+									   29025
+	提示：
+		SQL plus中使用一下命令来去掉分组重复的deptno
+			break on deptno skip 2;
+		使用以下命令来恢复
+			break on null;
+
+
+	使用了3个集合做并集
+		1 各部门各岗位工资总和
+			select deptno,job,sum(sal)
+			from emp
+			group by deptno,job
+			    DEPTNO JOB         SUM(SAL)
+			---------- --------- ----------
+			        20 CLERK           1900
+			        30 SALESMAN        5600
+			        20 MANAGER         2975
+			        30 CLERK            950
+			        10 PRESIDENT       5000
+			        30 MANAGER         2850
+			        10 CLERK           1300
+			        10 MANAGER         2450
+			        20 ANALYST         6000
+
+		2 各部门工资总和
+			select deptno,sum(sal)
+			from emp
+			group by deptno
+
+		    DEPTNO   SUM(SAL)
+		---------- ----------
+		        30       9400
+		        20      10875
+		        10       8750
+
+		3 整个公司的工资总和
+			select sum(sal)
+			from emp
+
+			  SUM(SAL)
+			----------
+			     29025
+
+
+			select deptno,job,sum(sal)
+			from emp
+			group by deptno,job
+
+			union
+
+			select deptno,null,sum(sal)
+			from emp
+			group by deptno
+
+			union
+
+			select null,null,sum(sal)
+			from emp
+									   
+集合运算注意事项：
+	* 参与运算的各个集合必须列数相同，且类型一致
+	* 采用第一个集合的表头作为最终使用的表头，（别名也只能在第一个集合上起）
+    * 可以使用括号修改各个sql执行的优先级
+	
+	
+5 新增数据：
+	insert into 表名 values(val,val2,val3.....)
+		按照创表时候的顺序来填写值，顺序不能错
+
+	insert into 表名(列1,列2,....)  values(val1,val2,...)
+		此时values中的值顺序就是按照 指定列的顺序来填写
+
+	
+	往部门表里边插入以下几行信息
+	    DEPTNO DNAME                        LOC
+	---------- ---------------------------- --------------------------
+			50 SUPPORT                      WASHINGTON
+			60 TEST
+			70 PURCHASING
+
+		insert into dept values(50,'SUPPORT','WASHINGTON')
+		insert into dept values(60,'TEST',NULL)
+		insert into dept(dname,deptno) values('PURCHASING',70)
+			有些列没有指定值，插入数据，会使用默认值，默认值可以在创表的时候设置
+			如果没有设置默认值，默认就是null
+
+
+
+6 修改数据：
+	update 表名 set 列名1=val1,列名2=val2... [where cond]
+
+	将60号部门的LOC改成MIAMI
+		update dept set loc = 'MIAMI' where deptno = 60
+
+
+	将50号部门的部门名字改成 SUPPORT1 ，LOC改为NULL
+		update dept 
+		set 
+			dname='SUPPORT1',
+			loc=null 
+		where deptno=50
+	
+7 删除数据：
+	
+	delete from 表名 [where cond]
+
+	删除部门号为50的部门信息
+		delete from dept 
+		where deptno = 50
+	删除部门号大于40的部门信息
+
+		delete from dept where deptno > 40
+
+8 sqlplus配置别名
+
+	方便不需要每次登录都敲ip和实例名
+	配置 sqlplus安装目录/product/11.2.0/client_1/network/admin/tnsnames.ora
+
+	配置完成之后
+	使用sqlplus登录
+
+	sqlplus 用户名/密码@实例别名
+
+	
+9 事务
+	例子：银行转账
+
+	A 100   ->   B 0
+
+		1 update  将A - 100
+			(断点、宕机、B刚好销户)
+		2 update  将B + 100
+
+		期望：要么两条语句都执行成功，要么都不执行
+
+
+		同时 C 也转账100块给B
+
+
+	事务的隔离级别
+
+		     var 数据默认是0
+
+		1 读未提交
+
+			A事务开启
+			读var读到0 
+					 					B 事务开启
+					 					将var设置为100
+			读var读到100					
+										提交
+
+		2 读已提交      			oracle 默认级别
+
+			A事务开启
+			读var读到0 
+					 					B 事务开启
+					 					将var设置为100
+			读var读到0					
+										提交
+			读var读到100	
+
+
+		3 可重复度    			mysql默认
+
+
+			A事务开启
+			读var读到0 
+					 					B 事务开启
+					 					将var设置为100
+			读var读到0					
+										提交
+			读var读到0
+			A事务结束
+
+
+			C事务开启
+			读var读到100
+
+
+		4 串行化    ，不允许并行     隔离级别最高
+
+
+			A事务开启
+			读var读到0 
+			A事务结束
+					 					B 事务开启
+					 					将var设置为100
+										提交
+
+
+
+事务的控制
+
+	建立保存点
+	savepoint 保存点名字
+	rollback to 保存点名字
+
+
+
+	
+课堂练习
+1 找到员工表中工资最高的前三名， 要求按如下格式输出
+
+
+	使用 rownum
+	select rownum , emp.*
+	from emp
+	order by sal desc
+
+
+	发现rownun被打乱，结论：行号的生成在排序前
+
+
+	拓展分页问题，查询工资5-8名的员工信息
+		还是使用rownum  rownum判断不能使用 >=
+
+2 找到emp表中薪水大于本部门平均薪水的员工
+
+	多表
+
+3 统计每年入职的员工个数
+
+	select hire_year,count(*)
+	from 
+	(
+		select to_char(hiredate,'yyyy') hire_year
+		from emp
+	)
+	group by hire_year
+
+
+	01标记法，来实现  ,使用 case语句或者 decode
+				1981      1982
+	scott        1          0
+	allen        0          1
+
+
+
+
+
+
+
+
